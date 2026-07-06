@@ -7,6 +7,7 @@ const socket = io(BACKEND_URL);
 export default function App() {
   const [user, setUser] = useState(null);
   const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState(''); // 🚀 New state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
@@ -18,29 +19,39 @@ export default function App() {
   // 1. Authenticate or Create Profile
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!usernameInput.trim()) return;
+    if (!usernameInput.trim() || !passwordInput.trim()) return;
 
     try {
-      // ✅ FIXED: Using dynamic BACKEND_URL instead of localhost
       const res = await fetch(`${BACKEND_URL}/api/auth`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: usernameInput.trim() }),
+        body: JSON.stringify({ 
+          username: usernameInput.trim(),
+          password: passwordInput.trim() // 🚀 Send password to backend
+        }),
       });
 
+      const data = await res.json();
+
+      // If the backend sends an error (like Wrong Password)
       if (!res.ok) {
-        throw new Error(`Server responded with status: ${res.status}`);
+        throw new Error(data.error || `Server error: ${res.status}`);
       }
 
-      const data = await res.json();
+      // Success!
       setUser(data);
       socket.emit('register-user', data.username);
+      
+      // Optional: Give the user feedback if they just created an account
+      if (data.isNew) {
+        alert("New account created successfully!");
+      }
+
     } catch (error) {
-      console.error("Login Error:", error);
-      alert(`Connection failed! Make sure your backend URL is correct in Render. Error: ${error.message}`);
+      console.error("Auth Error:", error);
+      alert(`Login failed: ${error.message}`);
     }
   };
-
   // 2. Search for Users
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -109,18 +120,25 @@ export default function App() {
     setMessageText('');
   };
 
-  if (!user) {
+ if (!user) {
     return (
       <div className="login-container">
         <form onSubmit={handleLogin} className="login-form">
           <h2>Enter Chat Room</h2>
           <input 
             type="text" 
-            placeholder="Choose a username..." 
+            placeholder="Username" 
             value={usernameInput} 
             onChange={(e) => setUsernameInput(e.target.value)}
           />
-          <button type="submit">Join</button>
+          {/* 🚀 New Password Field Below */}
+          <input 
+            type="password" 
+            placeholder="Password" 
+            value={passwordInput} 
+            onChange={(e) => setPasswordInput(e.target.value)}
+          />
+          <button type="submit">Join / Register</button>
         </form>
       </div>
     );

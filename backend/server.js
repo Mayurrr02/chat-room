@@ -1,3 +1,4 @@
+const bcrypt = require('bcryptjs'); 
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -20,8 +21,10 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.error("MongoDB Connection Error:", err));
 
 // --- Schemas & Models ---
-const UserSchema = new mongoose.Schema({ username: { type: String, unique: true, required: true } });
-const User = mongoose.model('User', UserSchema);
+const UserSchema = new mongoose.Schema({ 
+  username: { type: String, unique: true, required: true },
+  password: { type: String, required: true } // 🚀 New field added here
+});
 
 const MessageSchema = new mongoose.Schema({
   sender: String,
@@ -41,15 +44,35 @@ app.get('/', (req, res) => {
 // --- REST API Endpoints ---
 
 // Login or Register a user quickly
+// Login or Register securely
 app.post('/api/auth', async (req, res) => {
-  const { username } = req.body;
+  const { username, password } = req.body;
+  
+  if (!username || !password) {
+    return res.status(400).json({ error: "Username and password are required" });
+  }
+
   try {
     let user = await User.findOne({ username });
+
+    // SCENARIO 1: User does not exist -> Create account
     if (!user) {
-      user = new User({ username });
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      user = new User({ username, password: hashedPassword });
       await user.save();
+      return res.status(200).json({ username: user.username, isNew: true });
     }
-    res.status(200).json(user);
+
+    // SCENARIO 2: User exists -> Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Incorrect password" });
+    }
+
+    // Login successful
+    res.status(200).json({ username: user.username, isNew: false });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
