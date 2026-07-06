@@ -20,14 +20,25 @@ export default function App() {
     e.preventDefault();
     if (!usernameInput.trim()) return;
 
-    const res = await fetch('http://localhost:5001/api/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: usernameInput.trim() }),
-    });
-    const data = await res.json();
-    setUser(data);
-    socket.emit('register-user', data.username);
+    try {
+      // ✅ FIXED: Using dynamic BACKEND_URL instead of localhost
+      const res = await fetch(`${BACKEND_URL}/api/auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: usernameInput.trim() }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Server responded with status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      setUser(data);
+      socket.emit('register-user', data.username);
+    } catch (error) {
+      console.error("Login Error:", error);
+      alert(`Connection failed! Make sure your backend URL is correct in Render. Error: ${error.message}`);
+    }
   };
 
   // 2. Search for Users
@@ -37,10 +48,15 @@ export default function App() {
       return;
     }
     const searchUsers = async () => {
-      const res = await fetch(`http://localhost:5001/api/users/search?query=${searchQuery}`);
-      const data = await res.json();
-      // Don't show yourself in search results
-      setSearchResults(data.filter(u => u.username !== user.username));
+      try {
+        // ✅ FIXED: Using dynamic BACKEND_URL instead of localhost
+        const res = await fetch(`${BACKEND_URL}/api/users/search?query=${searchQuery}`);
+        const data = await res.json();
+        // Don't show yourself in search results
+        setSearchResults(data.filter(u => u.username !== user.username));
+      } catch (error) {
+        console.error("Search error:", error);
+      }
     };
     searchUsers();
   }, [searchQuery, user]);
@@ -50,9 +66,14 @@ export default function App() {
     if (!activeChat || !user) return;
 
     const fetchMessages = async () => {
-      const res = await fetch(`http://localhost:5001/api/messages?from=${user.username}&to=${activeChat.username}`);
-      const data = await res.json();
-      setMessages(data);
+      try {
+        // ✅ FIXED: Using dynamic BACKEND_URL instead of localhost
+        const res = await fetch(`${BACKEND_URL}/api/messages?from=${user.username}&to=${activeChat.username}`);
+        const data = await res.json();
+        setMessages(data);
+      } catch (error) {
+        console.error("Fetch messages error:", error);
+      }
     };
     fetchMessages();
   }, [activeChat, user]);
