@@ -1,0 +1,43 @@
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+body { background-color: #f0f2f5; height: 100vh; display: flex; justify-content: center; align-items: center; }
+#root { width: 100%; height: 100vh; display: flex; }
+
+/* Login Page UI */
+.login-container { display: flex; width: 100vw; height: 100vh; justify-content: center; align-items: center; background: #e9ecef; }
+.login-form { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; width: 320px; }
+.login-form h2 { margin-bottom: 20px; color: #333; }
+.login-form input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 6px; outline: none; font-size: 14px; }
+.login-form button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
+.login-form button:hover { background: #0056b3; }
+
+/* Application Layout */
+.app-container { display: flex; width: 100vw; height: 100vh; background: #fff; }
+
+/* Sidebar Interface */
+.sidebar { width: 300px; border-right: 1px solid #e0e0e0; background: #f8f9fa; display: flex; flex-direction: column; }
+.user-profile { padding: 20px; border-bottom: 1px solid #e0e0e0; font-size: 15px; color: #495057; }
+.search-bar { margin: 15px; padding: 10px; border: 1px solid #ced4da; border-radius: 20px; outline: none; font-size: 14px; }
+.user-list { flex: 1; overflow-y: auto; }
+.user-item { padding: 15px 20px; cursor: pointer; border-bottom: 1px solid #f1f3f5; font-weight: 500; transition: 0.2s; color: #333; }
+.user-item:hover, .user-item.active { background: #e7f5ff; color: #007bff; }
+.no-results { text-align: center; color: #868e96; margin-top: 20px; font-size: 14px; }
+
+/* Active Chat Window */
+.chat-window { flex: 1; display: flex; flex-direction: column; background: #fdfdfd; }
+.chat-header { padding: 20px; border-bottom: 1px solid #e0e0e0; background: #fff; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+.chat-placeholder { flex: 1; display: flex; justify-content: center; align-items: center; color: #adb5bd; font-size: 16px; }
+.message-list { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #f8f9fa; }
+
+/* Message Bubbles layout styling */
+.message-wrapper { display: flex; width: 100%; }
+.message-wrapper.outgoing { justify-content: flex-end; }
+.message-wrapper.incoming { justify-content: flex-content; }
+.message-bubble { max-width: 60%; padding: 10px 16px; border-radius: 18px; font-size: 14px; line-height: 1.4; word-break: break-word; }
+.outgoing .message-bubble { background: #007bff; color: white; border-bottom-right-radius: 2px; }
+.incoming .message-bubble { background: #e4e6eb; color: black; border-bottom-left-radius: 2px; }
+
+/* Message Typing Toolbar Input */
+.message-input-form { padding: 15px; background: white; border-top: 1px solid #e0e0e0; display: flex; gap: 10px; }
+.message-input-form input { flex: 1; padding: 12px 18px; border: 1px solid #ced4da; border-radius: 24px; outline: none; font-size: 14px; }
+.message-input-form button { padding: 0 22px; background: #007bff; color: white; border: none; border-radius: 24px; cursor: pointer; font-weight: bold; }
+.message-input-form button:hover { background: #0056b3; }

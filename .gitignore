@@ -1,0 +1,17 @@
+# Dependency directories (Never upload these, they are massive)
+**/node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Environment variables & Private secrets (Crucial for protecting your Atlas password)
+**/config.env
+**/.env
+**/.env.local
+
+# Production build outputs
+frontend/dist/
+frontend/build/
+
+# Operating System files
+.DS_Store
+Thumbs.db
