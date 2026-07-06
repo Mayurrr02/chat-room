@@ -31,6 +31,13 @@ const MessageSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', MessageSchema);
 
+// ==========================================
+// 🚀 THE FIX: Default Root Route added here
+// ==========================================
+app.get('/', (req, res) => {
+  res.send('Chat Application Backend Server is running successfully!');
+});
+
 // --- REST API Endpoints ---
 
 // Login or Register a user quickly
