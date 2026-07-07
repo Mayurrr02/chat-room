@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
+import './App.css';
+import Sidebar from './components/Sidebar/Sidebar';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
 const socket = io(BACKEND_URL);
@@ -8,8 +10,6 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messageText, setMessageText] = useState('');
   const [messages, setMessages] = useState([]);
@@ -59,25 +59,7 @@ export default function App() {
     }
   };
 
-  // 3. Search for Users
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    const searchUsers = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/users/search?query=${searchQuery}`);
-        const data = await res.json();
-        setSearchResults(data.filter(u => u.username !== user.username));
-      } catch (error) {
-        console.error("Search error:", error);
-      }
-    };
-    searchUsers();
-  }, [searchQuery, user]);
-
-  // 4. Load Chat History
+  // 3. Load Chat History
   useEffect(() => {
     if (!activeChat || !user) return;
 
@@ -93,7 +75,7 @@ export default function App() {
     fetchMessages();
   }, [activeChat, user]);
 
-  // 5. Real-time incoming messages
+  // 4. Real-time incoming messages
   useEffect(() => {
     socket.on('receive-message', (newMessage) => {
       if (activeChat && newMessage.sender === activeChat.username) {
@@ -108,7 +90,7 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // 6. Send Message
+  // 5. Send Message
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!messageText.trim() || !activeChat) return;
@@ -155,39 +137,15 @@ export default function App() {
   // ==========================================
   return (
     <div className="app-container">
-      {/* Sidebar Panel */}
-      <div className="sidebar">
-        
-        <div className="user-profile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Logged in as: <strong>@{user.username}</strong></span>
-          <button 
-            onClick={handleLogout} 
-            style={{ background: 'transparent', color: '#ff4444', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
-          >
-            Logout
-          </button>
-        </div>
-
-        <input 
-          type="text" 
-          placeholder="🔍 Search users to chat..." 
-          value={searchQuery} 
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="search-bar"
-        />
-        <div className="user-list">
-          {searchResults.map((u) => (
-            <div 
-              key={u._id} 
-              className={`user-item ${activeChat?.username === u.username ? 'active' : ''}`}
-              onClick={() => setActiveChat(u)}
-            >
-              @{u.username}
-            </div>
-          ))}
-          {searchQuery && searchResults.length === 0 && <p className="no-results">No users found</p>}
-        </div>
-      </div>
+      
+      {/* Sidebar Component injected here */}
+      <Sidebar 
+        user={user}
+        handleLogout={handleLogout}
+        activeChat={activeChat}
+        setActiveChat={setActiveChat}
+        BACKEND_URL={BACKEND_URL}
+      />
 
       {/* Main Chat Interface Panel */}
       <div className="chat-window">

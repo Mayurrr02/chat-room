@@ -23,9 +23,10 @@ mongoose.connect(process.env.MONGO_URI)
 // --- Schemas & Models ---
 const UserSchema = new mongoose.Schema({ 
   username: { type: String, unique: true, required: true },
-  password: { type: String, required: true } // 🚀 New field added here
+  password: { type: String, required: true } 
 });
 const User = mongoose.model('User', UserSchema);
+
 const MessageSchema = new mongoose.Schema({
   sender: String,
   receiver: String,
@@ -34,45 +35,53 @@ const MessageSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', MessageSchema);
 
-// ==========================================
-// 🚀 THE FIX: Default Root Route added here
-// ==========================================
 app.get('/', (req, res) => {
   res.send('Chat Application Backend Server is running successfully!');
 });
 
 // --- REST API Endpoints ---
 
-// Login or Register a user quickly
 // Login or Register securely
 app.post('/api/auth', async (req, res) => {
   const { username, password } = req.body;
-  
-  if (!username || !password) {
-    return res.status(400).json({ error: "Username and password are required" });
-  }
+  if (!username || !password) return res.status(400).json({ error: "Username and password required" });
 
   try {
     let user = await User.findOne({ username });
-
-    // SCENARIO 1: User does not exist -> Create account
     if (!user) {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
-
       user = new User({ username, password: hashedPassword });
       await user.save();
       return res.status(200).json({ username: user.username, isNew: true });
     }
-
-    // SCENARIO 2: User exists -> Check password
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ error: "Incorrect password" });
-    }
-
-    // Login successful
+    if (!isMatch) return res.status(401).json({ error: "Incorrect password" });
     res.status(200).json({ username: user.username, isNew: false });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Fetch active conversations for the sidebar
+app.get('/api/conversations/:username', async (req, res) => {
+  const { username } = req.params;
+  try {
+    const messages = await Message.find({
+      $or: [{ sender: username }, { receiver: username }]
+    });
+
+    const contacts = new Set();
+    messages.forEach(msg => {
+      if (msg.sender !== username) contacts.add(msg.sender);
+      if (msg.receiver !== username) contacts.add(msg.receiver);
+    });
+
+    const activeConversations = await User.find({
+      username: { $in: Array.from(contacts) }
+    }).select('-password');
+
+    res.status(200).json(activeConversations);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -106,22 +115,18 @@ app.get('/api/messages', async (req, res) => {
 });
 
 // --- Socket.io Real-Time Layer ---
-let onlineUsers = new Map(); // Maps username -> socket.id
+let onlineUsers = new Map(); 
 
 io.on('connection', (socket) => {
-  
   socket.on('register-user', (username) => {
     onlineUsers.set(username, socket.id);
   });
 
   socket.on('send-message', async (data) => {
     const { sender, receiver, text } = data;
-    
-    // Save message to MongoDB Atlas
     const newMessage = new Message({ sender, receiver, text });
     await newMessage.save();
 
-    // Emit to receiver if online
     const receiverSocketId = onlineUsers.get(receiver);
     if (receiverSocketId) {
       io.to(receiverSocketId).emit('receive-message', data);
