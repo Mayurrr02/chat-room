@@ -13,6 +13,7 @@ export default function App() {
   const [activeChat, setActiveChat] = useState(null);
   const [messageText, setMessageText] = useState('');
   const [messages, setMessages] = useState([]);
+  const [isAiTyping, setIsAiTyping] = useState(false);
   
   const messagesEndRef = useRef(null);
 
@@ -59,38 +60,93 @@ export default function App() {
     }
   };
 
-  // 3. Load Chat History
+  // 3. Typing Indicator Sockets (Isolated so they don't break history fetching)
+  useEffect(() => {
+    socket.on('display-typing', () => setIsAiTyping(true));
+    socket.on('hide-typing', () => setIsAiTyping(false));
+
+    return () => {
+      socket.off('display-typing');
+      socket.off('hide-typing');
+    };
+  }, []);
+
+  // 4. Load Chat History & Handle Instant Switching
   useEffect(() => {
     if (!activeChat || !user) return;
+
+    // INSTANTLY clear old messages and hide typing when switching chats
+    setMessages([]);
+    setIsAiTyping(false);
+
+    let isCurrentChat = true; // Race condition safety
 
     const fetchMessages = async () => {
       try {
         const res = await fetch(`${BACKEND_URL}/api/messages?from=${user.username}&to=${activeChat.username}`);
         const data = await res.json();
-        setMessages(data);
+        
+        // Only render if we haven't clicked a different user while fetching
+        if (isCurrentChat) {
+          setMessages(data);
+        }
       } catch (error) {
         console.error("Fetch messages error:", error);
       }
     };
+    
     fetchMessages();
+
+    // Send read receipts to the server since we just opened this chat
+    socket.emit('mark-seen', { 
+      sender: activeChat.username, 
+      receiver: user.username 
+    });
+
+    // Cleanup when we click away from this user
+    return () => {
+      isCurrentChat = false; 
+    };
   }, [activeChat, user]);
 
-  // 4. Real-time incoming messages
+  // 5. Real-time Incoming Messages
   useEffect(() => {
     socket.on('receive-message', (newMessage) => {
       if (activeChat && newMessage.sender === activeChat.username) {
         setMessages((prev) => [...prev, newMessage]);
+        
+        // Instantly mark this new message as seen if the chat is open
+        socket.emit('mark-seen', { 
+          sender: activeChat.username, 
+          receiver: user.username 
+        });
       }
     });
     return () => socket.off('receive-message');
-  }, [activeChat]);
+  }, [activeChat, user]);
+
+  // 6. Listen for Read Receipts (Blue Ticks)
+  useEffect(() => {
+    const handleMessagesSeen = ({ receiver }) => {
+      if (activeChat && activeChat.username === receiver) {
+        setMessages((prevMessages) => 
+          prevMessages.map((msg) => 
+            msg.sender === user.username ? { ...msg, status: 'seen' } : msg
+          )
+        );
+      }
+    };
+
+    socket.on('messages-seen', handleMessagesSeen);
+    return () => socket.off('messages-seen', handleMessagesSeen);
+  }, [activeChat, user]);
 
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isAiTyping]);
 
-  // 5. Send Message
+  // 7. Send Message
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!messageText.trim() || !activeChat) return;
@@ -98,7 +154,8 @@ export default function App() {
     const msgData = {
       sender: user.username,
       receiver: activeChat.username,
-      text: messageText.trim()
+      text: messageText.trim(),
+      status: 'sent'
     };
 
     socket.emit('send-message', msgData);
@@ -155,11 +212,32 @@ export default function App() {
             <div className="message-list">
               {messages.map((msg, index) => (
                 <div key={index} className={`message-wrapper ${msg.sender === user.username ? 'outgoing' : 'incoming'}`}>
-                  <div className="message-bubble">{msg.text}</div>
+                  
+                  {/* Message Bubble with Read Receipt Ticks Included */}
+                  <div className="message-bubble" style={{ display: 'flex', alignItems: 'flex-end', gap: '5px' }}>
+                    <span>{msg.text}</span>
+                    {msg.sender === user.username && (
+                      <span className="tick-icon" style={{ fontSize: '11px', color: msg.status === 'seen' ? '#34B7F1' : '#a0a0a0', marginLeft: '4px', fontWeight: 'bold' }}>
+                        {msg.status === 'seen' ? '✓✓' : '✓'}
+                      </span>
+                    )}
+                  </div>
+                  
                 </div>
               ))}
+              
+              {/* The Typing Indicator Bubble */}
+              {isAiTyping && activeChat?.username === 'yourgpt' && (
+                <div className="message-wrapper incoming">
+                  <div className="message-bubble" style={{ fontStyle: 'italic', color: 'gray', opacity: 0.8 }}>
+                    typing...
+                  </div>
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
             </div>
+            
             <form onSubmit={handleSendMessage} className="message-input-form">
               <input 
                 type="text" 

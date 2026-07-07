@@ -1,11 +1,20 @@
+const { Server } = require('socket.io');
+require('dotenv').config();
+// 🚀 NEW: Import the AI SDK
+const { GoogleGenerativeAI } = require('@google/generative-ai'); 
+require('dotenv').config();
+
+// 🚀 NEW: Initialize the AI with your API key
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY); 
+const aiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+
 const bcrypt = require('bcryptjs'); 
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
-const { Server } = require('socket.io');
 require('dotenv').config();
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -124,12 +133,67 @@ io.on('connection', (socket) => {
 
   socket.on('send-message', async (data) => {
     const { sender, receiver, text } = data;
-    const newMessage = new Message({ sender, receiver, text });
+    
+    // 1. Save the user's message to MongoDB
+    const newMessage = new Message({ sender, receiver, text, status: 'sent' });
     await newMessage.save();
 
+    // 2. Emit to the receiver (if they are a normal human user and online)
     const receiverSocketId = onlineUsers.get(receiver);
     if (receiverSocketId) {
       io.to(receiverSocketId).emit('receive-message', data);
+    }
+
+    // ==========================================
+    // 🚀 NEW: AI CHATBOT INTERCEPTION
+    // ==========================================
+    if (receiver === 'yourgpt') {
+      try {
+        // 🚀 1. INSTANTLY tell the user the AI is typing
+        const senderSocketId = onlineUsers.get(sender);
+        if (senderSocketId) {
+          io.to(senderSocketId).emit('display-typing', { username: 'yourgpt' });
+        }
+
+        // 2. Now, wait for the AI to generate the full response
+        const result = await aiModel.generateContent(text);
+        const aiResponseText = result.response.text();
+
+        // 3. Create the AI's reply data
+        const aiReplyData = {
+          sender: 'yourgpt',
+          receiver: sender, // Send it back to the person who asked
+          text: aiResponseText,
+          status: 'sent'
+        };
+
+        // 4. Save the AI's reply to MongoDB so it shows in chat history
+        const aiMessage = new Message(aiReplyData);
+        await aiMessage.save();
+
+        // 🚀 5. Tell the user to STOP showing the typing indicator
+        if (senderSocketId) {
+          io.to(senderSocketId).emit('hide-typing');
+        }
+
+        // 6. Emit the AI's reply directly back to the user in real-time
+        socket.emit('receive-message', aiReplyData);
+
+      } catch (error) {
+        console.error("AI Generation Error:", error);
+        
+        // 🚀 Hide typing if there is an error so it doesn't spin forever!
+        const senderSocketId = onlineUsers.get(sender);
+        if (senderSocketId) io.to(senderSocketId).emit('hide-typing');
+        
+        // Send a fallback message if the AI fails
+        socket.emit('receive-message', {
+          sender: 'yourgpt',
+          receiver: sender,
+          text: "Sorry, my AI brain is currently offline!",
+          status: 'sent'
+        });
+      }
     }
   });
 
