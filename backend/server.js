@@ -6,7 +6,7 @@ require('dotenv').config();
 
 // 🚀 NEW: Initialize the AI with your API key
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY); 
-const aiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const aiModel = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
 
 
 const bcrypt = require('bcryptjs'); 
