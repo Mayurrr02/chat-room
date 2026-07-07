@@ -7,7 +7,7 @@ const socket = io(BACKEND_URL);
 export default function App() {
   const [user, setUser] = useState(null);
   const [usernameInput, setUsernameInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState(''); // 🚀 New state
+  const [passwordInput, setPasswordInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
@@ -16,8 +16,7 @@ export default function App() {
   
   const messagesEndRef = useRef(null);
 
-  // 1. Authenticate or Create Profile
-  // --- NEW: Logout Handler ---
+  // 1. Logout Handler
   const handleLogout = () => {
     setUser(null);
     setActiveChat(null);
@@ -25,6 +24,8 @@ export default function App() {
     setUsernameInput('');
     setPasswordInput('');
   };
+
+  // 2. Authenticate or Create Profile
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!usernameInput.trim() || !passwordInput.trim()) return;
@@ -35,22 +36,19 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           username: usernameInput.trim(),
-          password: passwordInput.trim() // 🚀 Send password to backend
+          password: passwordInput.trim() 
         }),
       });
 
       const data = await res.json();
 
-      // If the backend sends an error (like Wrong Password)
       if (!res.ok) {
         throw new Error(data.error || `Server error: ${res.status}`);
       }
 
-      // Success!
       setUser(data);
       socket.emit('register-user', data.username);
       
-      // Optional: Give the user feedback if they just created an account
       if (data.isNew) {
         alert("New account created successfully!");
       }
@@ -60,7 +58,8 @@ export default function App() {
       alert(`Login failed: ${error.message}`);
     }
   };
-  // 2. Search for Users
+
+  // 3. Search for Users
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -68,10 +67,8 @@ export default function App() {
     }
     const searchUsers = async () => {
       try {
-        // ✅ FIXED: Using dynamic BACKEND_URL instead of localhost
         const res = await fetch(`${BACKEND_URL}/api/users/search?query=${searchQuery}`);
         const data = await res.json();
-        // Don't show yourself in search results
         setSearchResults(data.filter(u => u.username !== user.username));
       } catch (error) {
         console.error("Search error:", error);
@@ -80,13 +77,12 @@ export default function App() {
     searchUsers();
   }, [searchQuery, user]);
 
-  // 3. Load Chat History when selecting a user
+  // 4. Load Chat History
   useEffect(() => {
     if (!activeChat || !user) return;
 
     const fetchMessages = async () => {
       try {
-        // ✅ FIXED: Using dynamic BACKEND_URL instead of localhost
         const res = await fetch(`${BACKEND_URL}/api/messages?from=${user.username}&to=${activeChat.username}`);
         const data = await res.json();
         setMessages(data);
@@ -97,7 +93,7 @@ export default function App() {
     fetchMessages();
   }, [activeChat, user]);
 
-  // 4. Listen for real-time incoming messages via WebSockets
+  // 5. Real-time incoming messages
   useEffect(() => {
     socket.on('receive-message', (newMessage) => {
       if (activeChat && newMessage.sender === activeChat.username) {
@@ -107,12 +103,12 @@ export default function App() {
     return () => socket.off('receive-message');
   }, [activeChat]);
 
-  // Auto-scroll to latest message
+  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // 5. Send Message Handler
+  // 6. Send Message
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!messageText.trim() || !activeChat) return;
@@ -128,7 +124,10 @@ export default function App() {
     setMessageText('');
   };
 
- if (!user) {
+  // ==========================================
+  // LOGIN UI
+  // ==========================================
+  if (!user) {
     return (
       <div className="login-container">
         <form onSubmit={handleLogin} className="login-form">
@@ -139,7 +138,6 @@ export default function App() {
             value={usernameInput} 
             onChange={(e) => setUsernameInput(e.target.value)}
           />
-          {/* 🚀 New Password Field Below */}
           <input 
             type="password" 
             placeholder="Password" 
@@ -152,12 +150,14 @@ export default function App() {
     );
   }
 
+  // ==========================================
+  // MAIN CHAT UI
+  // ==========================================
   return (
     <div className="app-container">
       {/* Sidebar Panel */}
       <div className="sidebar">
         
-        {/* 🚀 UPDATED: User Profile with Logout Button */}
         <div className="user-profile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>Logged in as: <strong>@{user.username}</strong></span>
           <button 
@@ -218,3 +218,4 @@ export default function App() {
       </div>
     </div>
   );
+}
