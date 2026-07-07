@@ -6,7 +6,10 @@ require('dotenv').config();
 
 // 🚀 NEW: Initialize the AI with your API key
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY); 
-const aiModel = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
+const aiModel = genAI.getGenerativeModel({ 
+  model: "gemini-3.5-flash",
+  systemInstruction: "Your name is 'yourgpt' Developed My Mayur Jadhav. You are a helpful, friendly, and smart AI chatbot living inside a custom chat application. You must never refer to yourself as Gemini, a Google AI, or a large language model. Always maintain your persona as yourgpt."
+});
 
 
 const bcrypt = require('bcryptjs'); 
