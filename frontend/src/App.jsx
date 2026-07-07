@@ -17,6 +17,14 @@ export default function App() {
   const messagesEndRef = useRef(null);
 
   // 1. Authenticate or Create Profile
+  // --- NEW: Logout Handler ---
+  const handleLogout = () => {
+    setUser(null);
+    setActiveChat(null);
+    setMessages([]);
+    setUsernameInput('');
+    setPasswordInput('');
+  };
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!usernameInput.trim() || !passwordInput.trim()) return;
@@ -148,7 +156,18 @@ export default function App() {
     <div className="app-container">
       {/* Sidebar Panel */}
       <div className="sidebar">
-        <div className="user-profile">Logged in as: <strong>@{user.username}</strong></div>
+        
+        {/* 🚀 UPDATED: User Profile with Logout Button */}
+        <div className="user-profile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Logged in as: <strong>@{user.username}</strong></span>
+          <button 
+            onClick={handleLogout} 
+            style={{ background: 'transparent', color: '#ff4444', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            Logout
+          </button>
+        </div>
+
         <input 
           type="text" 
           placeholder="🔍 Search users to chat..." 
@@ -199,4 +218,3 @@ export default function App() {
       </div>
     </div>
   );
-}
