@@ -5,12 +5,14 @@ import Avatar from '../common/Avatar';
 import MessageList from './MessageList';
 import MessageComposer from './MessageComposer';
 import ConversationDetailsSidebar from './ConversationDetailsSidebar';
-import { Info, Users, Bot, MessageSquare } from 'lucide-react';
+import AiSummaryModal from '../ai/AiSummaryModal';
+import { Info, Users, Bot, MessageSquare, Sparkles } from 'lucide-react';
 
 const ChatWindow = () => {
   const { activeConversation } = useChat();
   const { presenceMap } = useSocket();
   const [showDetails, setShowDetails] = useState(false);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
 
   if (!activeConversation) {
     return (
@@ -72,6 +74,16 @@ const ChatWindow = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* AI Summary Header Button */}
+          <button
+            className="ai-summary-header-btn"
+            onClick={() => setShowSummaryModal(true)}
+            title="Generate AI Summary of this conversation"
+          >
+            <Sparkles size={14} />
+            <span>AI Summary</span>
+          </button>
+
           <button
             className={`header-action-btn ${showDetails ? 'active' : ''}`}
             onClick={() => setShowDetails(!showDetails)}
@@ -96,6 +108,12 @@ const ChatWindow = () => {
           />
         )}
       </div>
+
+      {/* AI Summary Modal */}
+      <AiSummaryModal
+        isOpen={showSummaryModal}
+        onClose={() => setShowSummaryModal(false)}
+      />
     </div>
   );
 };

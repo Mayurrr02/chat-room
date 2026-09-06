@@ -10,24 +10,32 @@ import {
   Trash2,
   Check,
   CheckCheck,
-  MoreVertical,
+  Copy,
+  Sparkles,
 } from 'lucide-react';
 
 const COMMON_EMOJIS = ['👍', '❤️', '🔥', '😂', '🎉', '🚀'];
 
-const MessageItem = ({ message, isFirstInGroup, showAvatar }) => {
+const MessageItem = ({ message, isFirstInGroup, showAvatar, isStreaming = false }) => {
   const { user } = useAuth();
   const { toggleReaction, editMessage, deleteMessage, setReplyingTo } = useChat();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showActionMenu, setShowActionMenu] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const isMine =
-    message.sender === user?._id ||
-    message.sender?._id === user?._id ||
-    message.senderUsername === user?.username;
+    !isStreaming &&
+    (message.sender === user?._id ||
+      message.sender?._id === user?._id ||
+      message.senderUsername === user?.username);
+
+  const isAI =
+    message.messageType === 'AI_RESPONSE' ||
+    message.senderUsername === 'AI Assistant' ||
+    message.senderUsername === 'yourgpt' ||
+    isStreaming;
 
   const isSystem = message.messageType === 'SYSTEM';
 
@@ -57,21 +65,30 @@ const MessageItem = ({ message, isFirstInGroup, showAvatar }) => {
     }
   };
 
-  const senderName =
-    message.sender?.displayName || message.sender?.username || message.senderUsername || 'User';
-  const senderAvatar = message.sender?.avatarUrl || message.sender?.avatar;
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const senderName = isAI
+    ? '🤖 AI Assistant'
+    : message.sender?.displayName || message.sender?.username || message.senderUsername || 'User';
+
+  const senderAvatar = isAI
+    ? 'https://ui-avatars.com/api/?name=AI&background=6366F1&color=fff&rounded=true&bold=true'
+    : message.sender?.avatarUrl || message.sender?.avatar;
 
   return (
     <div
       className={`message-row ${isMine ? 'outgoing' : 'incoming'} ${
         isFirstInGroup ? 'first-in-group' : 'continuation'
-      }`}
+      } ${isAI ? 'ai-message-row' : ''}`}
       onMouseLeave={() => {
         setShowEmojiPicker(false);
-        setShowActionMenu(false);
       }}
     >
-      {/* Left Avatar (for incoming messages) */}
+      {/* Left Avatar (for incoming / AI messages) */}
       {!isMine && showAvatar ? (
         <Avatar name={senderName} src={senderAvatar} size={32} className="message-sender-avatar" />
       ) : (
@@ -81,7 +98,10 @@ const MessageItem = ({ message, isFirstInGroup, showAvatar }) => {
       <div className="message-content-wrapper">
         {/* Sender Name header if first in group */}
         {!isMine && isFirstInGroup && (
-          <span className="message-sender-name">{senderName}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px', marginLeft: '6px' }}>
+            <span className={`message-sender-name ${isAI ? 'ai-name-label' : ''}`}>{senderName}</span>
+            {isAI && <span className="ai-model-badge">Gemini 2.5</span>}
+          </div>
         )}
 
         {/* Reply Preview Block */}
@@ -95,7 +115,11 @@ const MessageItem = ({ message, isFirstInGroup, showAvatar }) => {
         )}
 
         {/* Bubble */}
-        <div className={`message-bubble-card ${isMine ? 'mine' : 'theirs'} ${message.deletedAt ? 'deleted' : ''}`}>
+        <div
+          className={`message-bubble-card ${isMine ? 'mine' : isAI ? 'ai-bubble' : 'theirs'} ${
+            message.deletedAt ? 'deleted' : ''
+          }`}
+        >
           {isEditing ? (
             <form onSubmit={handleSaveEdit} className="edit-message-form">
               <input
@@ -122,7 +146,12 @@ const MessageItem = ({ message, isFirstInGroup, showAvatar }) => {
               {message.deletedAt ? (
                 <em style={{ color: '#94a3b8' }}>This message was deleted</em>
               ) : (
-                <MarkdownRenderer content={message.content} />
+                <>
+                  <MarkdownRenderer content={message.content} />
+                  {isStreaming && (
+                    <span className="streaming-cursor-pulse" />
+                  )}
+                </>
               )}
 
               {/* Timestamp & Status Metadata */}
@@ -168,8 +197,13 @@ const MessageItem = ({ message, isFirstInGroup, showAvatar }) => {
       </div>
 
       {/* Hover Action Toolbar */}
-      {!message.deletedAt && !isEditing && (
+      {!message.deletedAt && !isEditing && !isStreaming && (
         <div className="message-hover-toolbar">
+          {/* Copy button */}
+          <button className="toolbar-btn" onClick={handleCopy} title="Copy message text">
+            {copied ? <Check size={14} color="#10B981" /> : <Copy size={14} />}
+          </button>
+
           {/* Quick React Picker Trigger */}
           <div style={{ position: 'relative' }}>
             <button

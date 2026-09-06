@@ -19,6 +19,9 @@ export const ChatProvider = ({ children }) => {
   const [nextCursor, setNextCursor] = useState(null);
   const [typingUsers, setTypingUsers] = useState({}); // { [convId]: [ { userId, username, displayName } ] }
   const [replyingTo, setReplyingTo] = useState(null);
+  const [activeStreamMessage, setActiveStreamMessage] = useState(null); // { streamId, conversationId, content, senderUsername, isStreaming }
+  const [suggestedReplies, setSuggestedReplies] = useState([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
 
   const activeConvRef = useRef(activeConversation);
   useEffect(() => {
@@ -249,6 +252,32 @@ export const ChatProvider = ({ children }) => {
     [fetchConversations, selectConversation]
   );
 
+  // 10. AI Suggested Replies
+  const fetchSuggestedReplies = useCallback(async (lastMessageContent) => {
+    if (!activeConversation || !lastMessageContent) return;
+    setIsLoadingSuggestions(true);
+    try {
+      const res = await api.request('/api/ai/suggest-replies', {
+        method: 'POST',
+        body: { conversationId: activeConversation._id, lastMessageContent },
+      });
+      if (res.success && Array.isArray(res.suggestions)) {
+        setSuggestedReplies(res.suggestions);
+      }
+    } catch (e) {
+      console.warn('[ChatContext] Suggest replies failed:', e.message);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  }, [activeConversation]);
+
+  // 11. AI Conversation Summary
+  const summarizeConversation = useCallback(async (conversationId) => {
+    const targetId = conversationId || activeConversation?._id;
+    if (!targetId) return null;
+    return api.request(`/api/ai/summarize/${targetId}`, { method: 'POST' });
+  }, [activeConversation]);
+
   // ==========================================
   // Socket.io Real-Time Event Handlers
   // ==========================================
@@ -265,6 +294,11 @@ export const ChatProvider = ({ children }) => {
         });
         // Mark as read immediately if chat is open
         socket.emit('message:read', { conversationId: active._id });
+        
+        // Auto-fetch suggestions if incoming message from another user
+        if (newMessage.sender !== user?._id && newMessage.messageType !== 'SYSTEM') {
+          fetchSuggestedReplies(newMessage.content);
+        }
       }
 
       // Update conversations sidebar lastMessage and unread count
@@ -292,6 +326,50 @@ export const ChatProvider = ({ children }) => {
           return c;
         }).sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
       });
+    };
+
+    // AI Stream Handlers
+    const handleAiStreamStart = ({ streamId, conversationId, senderUsername }) => {
+      const active = activeConvRef.current;
+      if (active && active._id === conversationId) {
+        setActiveStreamMessage({
+          streamId,
+          conversationId,
+          senderUsername: senderUsername || 'AI Assistant',
+          content: '',
+          isStreaming: true,
+          createdAt: new Date(),
+        });
+      }
+    };
+
+    const handleAiStreamChunk = ({ streamId, deltaText }) => {
+      setActiveStreamMessage((prev) => {
+        if (!prev || prev.streamId !== streamId) return prev;
+        return {
+          ...prev,
+          content: prev.content + deltaText,
+        };
+      });
+    };
+
+    const handleAiStreamDone = ({ streamId, message }) => {
+      setActiveStreamMessage((prev) => {
+        if (prev && prev.streamId === streamId) return null;
+        return prev;
+      });
+
+      const active = activeConvRef.current;
+      if (active && active._id === message.conversationId) {
+        setMessages((prev) => {
+          if (prev.some((m) => m._id === message._id)) return prev;
+          return [...prev, message];
+        });
+      }
+    };
+
+    const handleAiStreamError = ({ streamId, error }) => {
+      setActiveStreamMessage(null);
     };
 
     // Typing event
@@ -362,6 +440,10 @@ export const ChatProvider = ({ children }) => {
     };
 
     socket.on('message:new', handleNewMessage);
+    socket.on('ai:stream:start', handleAiStreamStart);
+    socket.on('ai:stream:chunk', handleAiStreamChunk);
+    socket.on('ai:stream:done', handleAiStreamDone);
+    socket.on('ai:stream:error', handleAiStreamError);
     socket.on('user:typing', handleTyping);
     socket.on('message:read:ack', handleReadAck);
     socket.on('message:reaction:updated', handleReactionUpdated);
@@ -371,6 +453,10 @@ export const ChatProvider = ({ children }) => {
 
     return () => {
       socket.off('message:new', handleNewMessage);
+      socket.off('ai:stream:start', handleAiStreamStart);
+      socket.off('ai:stream:chunk', handleAiStreamChunk);
+      socket.off('ai:stream:done', handleAiStreamDone);
+      socket.off('ai:stream:error', handleAiStreamError);
       socket.off('user:typing', handleTyping);
       socket.off('message:read:ack', handleReadAck);
       socket.off('message:reaction:updated', handleReactionUpdated);
@@ -378,7 +464,7 @@ export const ChatProvider = ({ children }) => {
       socket.off('message:deleted', handleMessageDeleted);
       socket.off('conversation:updated');
     };
-  }, [socket, user, fetchConversations]);
+  }, [socket, user, fetchConversations, fetchSuggestedReplies]);
 
   return (
     <ChatContext.Provider
@@ -393,6 +479,10 @@ export const ChatProvider = ({ children }) => {
         typingUsers: activeConversation ? typingUsers[activeConversation._id] || [] : [],
         replyingTo,
         setReplyingTo,
+        activeStreamMessage,
+        suggestedReplies,
+        setSuggestedReplies,
+        isLoadingSuggestions,
         selectConversation,
         loadMoreMessages,
         sendMessage,
@@ -402,6 +492,8 @@ export const ChatProvider = ({ children }) => {
         deleteMessage,
         startDMWithUser,
         createGroup,
+        fetchSuggestedReplies,
+        summarizeConversation,
         refreshConversations: fetchConversations,
       }}
     >

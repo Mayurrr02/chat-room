@@ -1,13 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useChat } from '../../context/ChatContext';
-import { Send, Smile, X, Paperclip } from 'lucide-react';
+import SuggestedRepliesBar from '../ai/SuggestedRepliesBar';
+import { Send, Smile, X, Bot, Sparkles, Command } from 'lucide-react';
 
 const EMOJIS = ['😀', '😂', '😍', '🔥', '👍', '🎉', '🚀', '💡', '❤️', '🙌', '✨', '👏', '💯', '🤔', '👀', '😎'];
+
+const AI_COMMANDS = [
+  { cmd: '@ai summarize', label: 'Summarize Discussion', desc: 'Synthesize key decisions and actions' },
+  { cmd: '@ai explain', label: 'Explain Concept', desc: 'Clear in-depth conceptual breakdown' },
+  { cmd: '@ai extract-actions', label: 'Extract Action Items', desc: 'List tasks, owners, and deliverables' },
+  { cmd: '@ai brainstorm', label: 'Brainstorm Ideas', desc: 'Generate innovative architectural solutions' },
+  { cmd: '@ai translate', label: 'Translate Text', desc: 'Accurate multilingual translation' },
+  { cmd: '@ai rewrite', label: 'Rewrite Professionally', desc: 'Enhance tone and clarity' },
+];
 
 const MessageComposer = () => {
   const { sendMessage, sendTyping, replyingTo, setReplyingTo } = useChat();
   const [text, setText] = useState('');
   const [showEmojis, setShowEmojis] = useState(false);
+  const [showAiCommands, setShowAiCommands] = useState(false);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -36,6 +47,7 @@ const MessageComposer = () => {
     sendTyping(false);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     setShowEmojis(false);
+    setShowAiCommands(false);
   };
 
   const handleKeyDown = (e) => {
@@ -47,6 +59,17 @@ const MessageComposer = () => {
 
   const handleInsertEmoji = (emoji) => {
     setText((prev) => prev + emoji);
+    inputRef.current?.focus();
+  };
+
+  const handleInsertAiCommand = (cmd) => {
+    setText((prev) => (prev ? `${prev} ${cmd} ` : `${cmd} `));
+    setShowAiCommands(false);
+    inputRef.current?.focus();
+  };
+
+  const handleSelectSuggestedReply = (reply) => {
+    setText(reply);
     inputRef.current?.focus();
   };
 
@@ -71,7 +94,34 @@ const MessageComposer = () => {
         </div>
       )}
 
-      {/* 2. Emoji Popover */}
+      {/* 2. AI Suggested Replies Bar */}
+      <SuggestedRepliesBar onSelectReply={handleSelectSuggestedReply} />
+
+      {/* 3. AI Commands Popover */}
+      {showAiCommands && (
+        <div className="composer-ai-menu">
+          <div className="ai-menu-header">
+            <Sparkles size={14} color="#6366F1" />
+            <span>AI Copilot Commands</span>
+          </div>
+          <div className="ai-command-list">
+            {AI_COMMANDS.map((item) => (
+              <button
+                key={item.cmd}
+                className="ai-command-item"
+                onClick={() => handleInsertAiCommand(item.cmd)}
+              >
+                <div style={{ fontWeight: 600, color: '#4f46e5', fontSize: '13px' }}>
+                  {item.cmd}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>{item.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Emoji Popover */}
       {showEmojis && (
         <div className="composer-emoji-tray">
           <div className="emoji-grid">
@@ -88,15 +138,26 @@ const MessageComposer = () => {
         </div>
       )}
 
-      {/* 3. Composer Form */}
+      {/* 5. Composer Form */}
       <form onSubmit={handleSend} className="composer-form">
+        {/* Quick @AI Mention / Command Trigger */}
+        <button
+          type="button"
+          className="composer-ai-badge-btn"
+          onClick={() => setShowAiCommands(!showAiCommands)}
+          title="AI Copilot Commands (@ai)"
+        >
+          <Bot size={18} />
+          <span>@AI</span>
+        </button>
+
         <button
           type="button"
           className="composer-icon-btn"
           onClick={() => setShowEmojis(!showEmojis)}
           title="Insert Emoji"
         >
-          <Smile size={20} color={showEmojis ? '#4f46e5' : '#64748b'} />
+          <Smile size={19} color={showEmojis ? '#4f46e5' : '#64748b'} />
         </button>
 
         <textarea
@@ -104,7 +165,7 @@ const MessageComposer = () => {
           value={text}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          placeholder="Write a message... (Press Enter to send, Shift+Enter for new line)"
+          placeholder="Type a message or use @ai to collaborate... (Enter to send)"
           rows={1}
           className="composer-textarea"
         />

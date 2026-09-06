@@ -1,5 +1,7 @@
 const messageService = require('../services/message.service');
 const conversationService = require('../services/conversation.service');
+const aiService = require('../services/ai.service');
+const Conversation = require('../models/conversation.model');
 const ConversationMember = require('../models/conversationMember.model');
 const User = require('../models/user.model');
 
@@ -52,6 +54,67 @@ module.exports = function registerChatHandlers(io, socket, socketManager) {
 
       if (typeof callback === 'function') {
         callback({ success: true, message });
+      }
+
+      // ==========================================
+      // AI COPILOT INTERCEPTION & STREAMING
+      // ==========================================
+      const isAiTriggered = aiService.parseAiTrigger(content);
+      const conv = await Conversation.findById(conversationId).lean();
+      const isAiConversation = conv && conv.type === 'AI';
+
+      if (isAiTriggered || isAiConversation) {
+        const streamId = `stream_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+        // 1. Emit stream start to conversation room
+        io.to(`conv:${conversationId}`).emit('ai:stream:start', {
+          streamId,
+          conversationId,
+          senderUsername: 'AI Assistant',
+          createdAt: new Date(),
+        });
+
+        // 2. Stream AI generation
+        aiService
+          .handleAiMessage({
+            conversationId,
+            userId: currentUserId,
+            userMessage: {
+              content,
+              conversationType: conv ? conv.type : 'DM',
+            },
+            onStreamChunk: (deltaText) => {
+              io.to(`conv:${conversationId}`).emit('ai:stream:chunk', {
+                streamId,
+                deltaText,
+              });
+            },
+          })
+          .then((aiMessage) => {
+            if (aiMessage) {
+              // 3. Emit stream complete with final saved message
+              io.to(`conv:${conversationId}`).emit('ai:stream:done', {
+                streamId,
+                message: aiMessage,
+              });
+
+              // Notify all members' sidebars
+              members.forEach((m) => {
+                socketManager.emitToUser(m.userId.toString(), 'conversation:updated', {
+                  conversationId,
+                  lastMessage: aiMessage,
+                  senderId: 'ai_assistant',
+                });
+              });
+            }
+          })
+          .catch((err) => {
+            console.error('[Socket] AI streaming error:', err.message);
+            io.to(`conv:${conversationId}`).emit('ai:stream:error', {
+              streamId,
+              error: 'AI assistant temporarily unavailable',
+            });
+          });
       }
     } catch (err) {
       console.error('[Socket] message:send error:', err.message);
@@ -147,7 +210,7 @@ module.exports = function registerChatHandlers(io, socket, socketManager) {
   // Backward Compatibility Handlers for Legacy Clients
   // ==========================================
   socket.on('register-user', (username) => {
-    // Already handled in socketManager connection lifecycle
+    // Handled in socketManager connection lifecycle
   });
 
   socket.on('mark-seen', async ({ sender, receiver }) => {
@@ -185,6 +248,28 @@ module.exports = function registerChatHandlers(io, socket, socketManager) {
           status: 'sent',
           timestamp: msg.createdAt,
         });
+
+        // Intercept legacy yourgpt
+        if (receiver === 'yourgpt') {
+          aiService
+            .handleAiMessage({
+              conversationId: conv._id,
+              userId: senderUser._id,
+              userMessage: { content: text, conversationType: 'DM' },
+            })
+            .then((aiMsg) => {
+              if (aiMsg) {
+                socket.emit('receive-message', {
+                  _id: aiMsg._id,
+                  sender: 'yourgpt',
+                  receiver: sender,
+                  text: aiMsg.content,
+                  status: 'sent',
+                  timestamp: aiMsg.createdAt,
+                });
+              }
+            });
+        }
       }
     } catch (err) {
       console.error('[Legacy Socket] send-message error:', err.message);

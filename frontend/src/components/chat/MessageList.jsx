@@ -12,18 +12,19 @@ const MessageList = () => {
     loadMoreMessages,
     typingUsers,
     activeConversation,
+    activeStreamMessage,
   } = useChat();
 
   const messagesEndRef = useRef(null);
   const containerRef = useRef(null);
   const prevScrollHeightRef = useRef(0);
 
-  // Auto-scroll on initial load or new messages
+  // Auto-scroll on initial load, new messages, or streaming chunk update
   useEffect(() => {
     if (!isLoadingMore) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages.length, isLoadingMore]);
+  }, [messages.length, activeStreamMessage?.content, isLoadingMore]);
 
   // Preserve scroll position when loading older messages
   const handleLoadMore = async () => {
@@ -131,6 +132,22 @@ const MessageList = () => {
             />
           );
         })
+      )}
+
+      {/* 2.5 Live AI Streaming Message Bubble */}
+      {activeStreamMessage && (
+        <MessageItem
+          message={{
+            _id: activeStreamMessage.streamId,
+            content: activeStreamMessage.content || 'Thinking...',
+            senderUsername: 'AI Assistant',
+            messageType: 'AI_RESPONSE',
+            createdAt: activeStreamMessage.createdAt,
+          }}
+          isFirstInGroup={true}
+          showAvatar={true}
+          isStreaming={true}
+        />
       )}
 
       {/* 3. Typing Indicators */}
